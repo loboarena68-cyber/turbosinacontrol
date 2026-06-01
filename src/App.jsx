@@ -41,10 +41,7 @@ export default function App() {
   const [saldos, setSaldos] = useState({ "16": "", "17": "" });
   const [saldosSaved, setSaldosSaved] = useState({ "16": null, "17": null });
   
-  // Nuevo estado para la Categoría Operativa de cada cisterna
   const [statusCisternas, setStatusCisternas] = useState({ "16": "A", "17": "A" });
-  
-  // Nuevo estado para el filtro de la Bitácora
   const [searchTerm, setSearchTerm] = useState("");
 
   const [form, setForm] = useState(emptyForm("16"));
@@ -163,10 +160,8 @@ export default function App() {
     setTimeout(() => setMsg(null), 3500);
   };
 
-  // Autocompletado: Extraer matrículas únicas
   const aeronavesUnicas = [...new Set(records.filter(r => r.matriculaAeronave).map(r => r.matriculaAeronave))];
 
-  // Búsqueda en Bitácora
   const recordsFiltrados = records.filter(r => {
     if (!searchTerm) return true;
     const term = searchTerm.toUpperCase();
@@ -268,12 +263,18 @@ export default function App() {
         <div style={{ background: "#1e293b", padding: "40px", borderRadius: "8px", border: "1px solid #334155", width: "100%", maxWidth: "350px", textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
           <div style={{ fontSize: "24px", fontWeight: "700", letterSpacing: "2px", color: "#94a3b8", marginBottom: "8px" }}>SECCIÓN A-4</div>
           <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "30px", letterSpacing: "1px" }}>SISTEMA DE CONTROL LOGÍSTICO</div>
+          
           <form onSubmit={handleLogin}>
             <input 
-              type="password" value={passInput} onChange={e => setPassInput(e.target.value)} placeholder="Código de Autorización" 
+              type="password" 
+              value={passInput} 
+              onChange={e => setPassInput(e.target.value)} 
+              placeholder="Código de Autorización" 
               style={{ width: "100%", background: "#0f172a", border: "1px solid #475569", color: "#f8fafc", padding: "12px", borderRadius: "4px", textAlign: "center", letterSpacing: "2px", marginBottom: "20px", outline: "none", boxSizing: "border-box" }}
             />
-            <button type="submit" style={{ width: "100%", background: "#3b82f6", color: "#fff", border: "none", padding: "12px", borderRadius: "4px", fontWeight: "600", letterSpacing: "1px", cursor: "pointer", textTransform: "uppercase", fontSize: "13px" }}>Autenticar</button>
+            <button type="submit" style={{ width: "100%", background: "#3b82f6", color: "#fff", border: "none", padding: "12px", borderRadius: "4px", fontWeight: "600", letterSpacing: "1px", cursor: "pointer", textTransform: "uppercase", fontSize: "13px" }}>
+              Autenticar
+            </button>
           </form>
           {msg && <div style={{ marginTop: "20px", color: "#ef4444", fontSize: "13px" }}>{msg.text}</div>}
         </div>
@@ -468,7 +469,6 @@ export default function App() {
                     <div style={{ borderLeft: "1px solid #334155", paddingLeft: 16 }}>
                       <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Existencia Actual</div>
                       <div style={{ fontSize: 24, fontWeight: 700, color: isLowReserve ? "#ef4444" : COLOR_SALDO }}>{formatNum(s)} <span style={{ fontSize: 12, color: isLowReserve ? "#ef4444" : COLOR_SALDO }}>L</span></div>
-                      {/* Alerta de Reserva Menor a 5000 */}
                       {isLowReserve && (
                          <div style={{ marginTop: 6, fontSize: 10, color: "#ef4444", fontWeight: 700, background: "rgba(239, 68, 68, 0.1)", padding: "4px 8px", borderRadius: 4, display: "inline-block" }}>
                            ⚠️ RESERVA COMPROMETIDA (&lt; 5,000 L)
@@ -485,7 +485,6 @@ export default function App() {
         {/* TAB: Historial (Bitácora) */}
         {tab === "historial" && (
           <div>
-            {/* Buscador Integrado */}
             <div style={{ marginBottom: 20 }}>
               <input 
                 type="text" 
