@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 
 // --- CONFIGURACIÓN DE CONTRASEÑA ---
-const PASSWORD_ACCESO = "cyl4";
+const PASSWORD_ACCESO = "A4-LOG";
 // -----------------------------------
 
-const OP_TYPES = ["Adiestramiento", "Ruta Nacional", "Mantenimiento", "Otros"];
+const OP_TYPES = ["Adiestramiento", "Ruta Nacional", "Mantenimiento", "Vuelo de prueba", "Otros"];
 
 const formatNum = (n) =>
   Number(n).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,10 +41,7 @@ export default function App() {
   const [saldos, setSaldos] = useState({ "16": "", "17": "" });
   const [saldosSaved, setSaldosSaved] = useState({ "16": null, "17": null });
   
-  // Nuevo estado para la Categoría Operativa de cada cisterna
   const [statusCisternas, setStatusCisternas] = useState({ "16": "A", "17": "A" });
-  
-  // Nuevo estado para el filtro de la Bitácora
   const [searchTerm, setSearchTerm] = useState("");
 
   const [form, setForm] = useState(emptyForm("16"));
@@ -55,6 +52,9 @@ export default function App() {
   const [personalHistory, setPersonalHistory] = useState([]);
   const [perForm, setPerForm] = useState({ periodo: currentMonthStr(), conductor: "", responsable: "" });
 
+  const [notesCisternas, setNotesCisternas] = useState({ "16": [], "17": [] });
+  const [noteInput, setNoteInput] = useState({ "16": "", "17": "" });
+
   useEffect(() => {
     const authStatus = sessionStorage.getItem("turbo-auth");
     if (authStatus === "true") setIsAuthenticated(true);
@@ -63,10 +63,12 @@ export default function App() {
     const inits = localStorage.getItem("turbo-iniciales");
     const personal = localStorage.getItem("turbo-personal-17");
     const status = localStorage.getItem("turbo-status-cisternas");
+    const storedNotes = localStorage.getItem("turbo-notes-cisternas");
 
     if (recs) setRecords(JSON.parse(recs));
     if (personal) setPersonalHistory(JSON.parse(personal));
     if (status) setStatusCisternas(JSON.parse(status));
+    if (storedNotes) setNotesCisternas(JSON.parse(storedNotes));
     
     if (inits) {
       const parsed = JSON.parse(inits);
@@ -81,7 +83,7 @@ export default function App() {
       setIsAuthenticated(true);
       sessionStorage.setItem("turbo-auth", "true");
     } else {
-      flash("Contraseña denegada. Acceso restringido.", "error");
+      flash("Contraseña denegada.", "error");
       setPassInput("");
     }
   };
@@ -100,7 +102,37 @@ export default function App() {
     const updated = { ...statusCisternas, [cis]: newStatus };
     setStatusCisternas(updated);
     localStorage.setItem("turbo-status-cisternas", JSON.stringify(updated));
-    flash(`C-${cis} actualizada a Categoría ${newStatus}`, newStatus === "C" ? "error" : "ok");
+    flash(`C-${cis} en categoría ${newStatus}`, newStatus === "C" ? "error" : "ok");
+  };
+
+  const saveNotes = (updatedNotes) => {
+    setNotesCisternas(updatedNotes);
+    localStorage.setItem("turbo-notes-cisternas", JSON.stringify(updatedNotes));
+  };
+
+  const handleAddNote = (cis) => {
+    if (!noteInput[cis].trim()) return;
+    const newNoteObj = {
+      id: Date.now(),
+      fecha: todayStr(),
+      text: noteInput[cis].trim()
+    };
+    const updated = {
+      ...notesCisternas,
+      [cis]: [newNoteObj, ...notesCisternas[cis]]
+    };
+    saveNotes(updated);
+    setNoteInput({ ...noteInput, [cis]: "" });
+    flash("Anotación registrada.", "ok");
+  };
+
+  const handleDeleteNote = (cis, id) => {
+    if (!confirm("¿Desea eliminar esta anotación permanente?")) return;
+    const updated = {
+      ...notesCisternas,
+      [cis]: notesCisternas[cis].filter(n => n.id !== id)
+    };
+    saveNotes(updated);
   };
 
   const saldoCisterna = (cis) => {
@@ -119,7 +151,7 @@ export default function App() {
 
   const handleSaveInicial = (cis) => {
     const val = parseFloat(saldos[cis]);
-    if (isNaN(val) || val < 0) return flash("Ingresa un valor válido", "error");
+    if (isNaN(val) || val < 0) return flash("Valor inválido", "error");
     const newSaved = { ...saldosSaved, [cis]: val };
     setSaldosSaved(newSaved);
     localStorage.setItem("turbo-iniciales", JSON.stringify(newSaved));
@@ -134,28 +166,24 @@ export default function App() {
     const newRec = { ...form, id: Date.now(), litros: parseFloat(form.litros) };
     saveRecs([...records, newRec]);
     setForm(emptyForm(form.cisterna));
-    flash("Operación registrada correctamente.", "ok");
+    flash("Operación registrada.", "ok");
   };
 
   const handleSavePersonal = () => {
-    if (!perForm.conductor.trim() || !perForm.responsable.trim()) {
-      return flash("Error: Ingrese Conductor y Responsable", "error");
-    }
+    if (!perForm.conductor.trim() || !perForm.responsable.trim()) return flash("Error: Ingrese campos", "error");
     const filtered = personalHistory.filter(p => p.periodo !== perForm.periodo);
     const updated = [...filtered, { ...perForm, id: Date.now() }].sort((a, b) => b.periodo.localeCompare(a.periodo));
     savePersonal(updated);
     setPerForm({ periodo: currentMonthStr(), conductor: "", responsable: "" });
-    flash("Asignación de personal registrada.", "ok");
+    flash("Asignación registrada.", "ok");
   };
 
   const handleDeletePersonal = (id) => {
-    if (!confirm("¿Eliminar este registro de asignación histórica?")) return;
-    savePersonal(personalHistory.filter(p => p.id !== id));
+    if (confirm("¿Eliminar registro?")) savePersonal(personalHistory.filter(p => p.id !== id));
   };
 
   const handleDelete = (id) => {
-    if (!confirm("¿Autoriza la eliminación de este registro operativo?")) return;
-    saveRecs(records.filter((r) => r.id !== id));
+    if (confirm("¿Eliminar registro operativo?")) saveRecs(records.filter((r) => r.id !== id));
   };
 
   const flash = (text, type) => {
@@ -163,10 +191,8 @@ export default function App() {
     setTimeout(() => setMsg(null), 3500);
   };
 
-  // Autocompletado: Extraer matrículas únicas
   const aeronavesUnicas = [...new Set(records.filter(r => r.matriculaAeronave).map(r => r.matriculaAeronave))];
 
-  // Búsqueda en Bitácora
   const recordsFiltrados = records.filter(r => {
     if (!searchTerm) return true;
     const term = searchTerm.toUpperCase();
@@ -176,6 +202,10 @@ export default function App() {
       (r.notas && r.notas.toUpperCase().includes(term))
     );
   });
+
+  // NUEVO: Cálculos consolidados basados estrictamente en el filtro actual
+  const totalDespachadoFiltrado = recordsFiltrados.filter(r => r.tipo === "despacho").reduce((a, r) => a + r.litros, 0);
+  const totalRecargadoFiltrado = recordsFiltrados.filter(r => r.tipo === "recarga").reduce((a, r) => a + r.litros, 0);
 
   const grouped = recordsFiltrados.reduce((acc, r) => {
     if (!acc[r.fecha]) acc[r.fecha] = [];
@@ -193,30 +223,32 @@ export default function App() {
     return { despachos, recargas };
   };
 
-  const getActivePersonnelForMonth = (dateStr) => {
-    const targetMonth = dateStr.slice(0, 7);
-    const match = personalHistory.find(p => p.periodo === targetMonth);
-    return match || { conductor: "No asignado", responsable: "No asignado" };
+  const getMonthStats = (cis) => {
+    const currentMonth = currentMonthStr();
+    const monthRecords = records.filter(r => r.cisterna === cis && r.fecha.slice(0, 7) === currentMonth);
+    const despachos = monthRecords.filter(r => r.tipo === "despacho").reduce((a, r) => a + r.litros, 0);
+    const recargas = monthRecords.filter(r => r.tipo === "recarga").reduce((a, r) => a + r.litros, 0);
+    return { despachos, recargas };
   };
 
-  const activePersonnel = getActivePersonnelForMonth(form.fecha);
+  const activePersonnel = personalHistory.find(p => p.periodo === form.fecha.slice(0, 7)) || { conductor: "No asignado", responsable: "No asignado" };
 
   // --- EXPORTACIONES ---
   const exportBackup = () => {
     const backup = { 
-      version: 3, 
+      version: 4, 
       fecha: new Date().toISOString(), 
       saldosIniciales: saldosSaved, 
-      registros: records,
-      personal17: personalHistory,
-      estadoCisternas: statusCisternas
+      registros: records, 
+      personal17: personalHistory, 
+      estadoCisternas: statusCisternas,
+      notasCisternas: notesCisternas 
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `A4_Turbosina_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `Backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    flash("Copia de seguridad cifrada y descargada.", "ok");
   };
 
   const importBackup = (e) => {
@@ -226,8 +258,7 @@ export default function App() {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (!data.registros || !data.saldosIniciales) throw new Error("Formato inválido");
-        if (!confirm(`Se sobreescribirán los datos actuales. ¿Proceder?`)) return;
+        if (!confirm("¿Sobrescribir datos?")) return;
         saveRecs(data.registros);
         setSaldosSaved(data.saldosIniciales);
         setSaldos({ "16": data.saldosIniciales["16"] ?? "", "17": data.saldosIniciales["17"] ?? "" });
@@ -237,403 +268,236 @@ export default function App() {
           setStatusCisternas(data.estadoCisternas);
           localStorage.setItem("turbo-status-cisternas", JSON.stringify(data.estadoCisternas));
         }
-        flash(`Respaldo restaurado exitosamente.`, "ok");
-      } catch (_) {
-        flash("Error de integridad en el archivo de respaldo.", "error");
-      }
+        if (data.notasCisternas) {
+          saveNotes(data.notasCisternas);
+        } else {
+          saveNotes({ "16": [], "17": [] });
+        }
+        flash("Datos restaurados.", "ok");
+      } catch (_) { flash("Error en archivo.", "error"); }
     };
     reader.readAsText(file);
-    e.target.value = "";
   };
 
   const exportCSV = () => {
     const headers = ["Fecha", "Cisterna", "Proveedor", "Tipo", "Litros", "Aeronave", "Operacion", "Notas"];
-    const rows = records.map((r) => [
-      r.fecha, `C-${r.cisterna}`, CISTERNAS[r.cisterna].proveedor,
-      r.tipo === "despacho" ? "Despacho" : r.tipo === "recarga" ? "Recarga" : "Ajuste",
-      r.tipo === "despacho" ? -r.litros : r.litros, r.matriculaAeronave || "", r.tipoOperacion || "", r.notas || "",
-    ]);
+    const rows = records.map((r) => [r.fecha, `C-${r.cisterna}`, CISTERNAS[r.cisterna].proveedor, r.tipo, r.tipo === "despacho" ? -r.litros : r.litros, r.matriculaAeronave || "", r.tipoOperacion || "", r.notas || ""]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `Reporte_Mensual_Turbosina_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `Reporte_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
 
-  // --- PANTALLA DE LOGIN ---
   if (!isAuthenticated) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#f8fafc", fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-        <div style={{ background: "#1e293b", padding: "40px", borderRadius: "8px", border: "1px solid #334155", width: "100%", maxWidth: "350px", textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
-          <div style={{ fontSize: "24px", fontWeight: "700", letterSpacing: "2px", color: "#94a3b8", marginBottom: "8px" }}>SECCIÓN A-4</div>
-          <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "30px", letterSpacing: "1px" }}>SISTEMA DE CONTROL LOGÍSTICO</div>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#1e293b", padding: "40px", borderRadius: "8px", border: "1px solid #334155", width: "100%", maxWidth: "350px", textAlign: "center" }}>
+          <div style={{ fontWeight: 700, letterSpacing: "2px", color: "#94a3b8", marginBottom: "20px" }}>SECCIÓN A-4</div>
           <form onSubmit={handleLogin}>
-            <input 
-              type="password" value={passInput} onChange={e => setPassInput(e.target.value)} placeholder="Código de Autorización" 
-              style={{ width: "100%", background: "#0f172a", border: "1px solid #475569", color: "#f8fafc", padding: "12px", borderRadius: "4px", textAlign: "center", letterSpacing: "2px", marginBottom: "20px", outline: "none", boxSizing: "border-box" }}
-            />
-            <button type="submit" style={{ width: "100%", background: "#3b82f6", color: "#fff", border: "none", padding: "12px", borderRadius: "4px", fontWeight: "600", letterSpacing: "1px", cursor: "pointer", textTransform: "uppercase", fontSize: "13px" }}>Autenticar</button>
+            <input type="password" value={passInput} onChange={e => setPassInput(e.target.value)} placeholder="Código" style={{ width: "100%", padding: "12px", borderRadius: "4px", marginBottom: "20px", background: "#0f172a", color: "#fff", border: "1px solid #475569" }} />
+            <button type="submit" style={{ width: "100%", padding: "12px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px" }}>Autenticar</button>
           </form>
-          {msg && <div style={{ marginTop: "20px", color: "#ef4444", fontSize: "13px" }}>{msg.text}</div>}
         </div>
       </div>
     );
   }
 
-  // --- PANTALLA PRINCIPAL ---
   return (
-    <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      
-      {/* Alerta Global Categoria C */}
+    <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "sans-serif" }}>
       {isAnyCatC && (
-        <div style={{ background: "#7f1d1d", color: "#fca5a5", padding: "10px 20px", textAlign: "center", fontSize: 13, fontWeight: 700, letterSpacing: 1, borderBottom: "1px solid #ef4444" }}>
-          ⚠️ ALERTA DE FLOTA: {(statusCisternas["16"] === "C" && statusCisternas["17"] === "C") ? "AMBAS CISTERNAS" : statusCisternas["16"] === "C" ? "CISTERNA 16" : "CISTERNA 17"} FUERA DE SERVICIO (CATEGORÍA C)
-        </div>
+        <div style={{ background: "#7f1d1d", color: "#fca5a5", padding: "10px", textAlign: "center", fontSize: 13, fontWeight: 700 }}>⚠️ ALERTA: UNIDAD FUERA DE SERVICIO (CAT C)</div>
       )}
-
-      {/* Header Ejecutivo */}
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "16px 24px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1.5, color: "#f8fafc" }}>CONTROL DE TURBOSINA</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", letterSpacing: 1, marginTop: 4 }}>GESTIÓN DE COMBUSTIBLE • SECCIÓN A-4</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase" }}>Inventario Consolidado</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: COLOR_SALDO }}>
-              {formatNum(saldoTotal)} <span style={{ fontSize: 14, color: COLOR_SALDO }}>L</span>
-            </div>
-          </div>
+      <div style={{ background: "#1e293b", padding: "20px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div><div style={{ fontSize: 18, fontWeight: 700 }}>CONTROL DE TURBOSINA</div><div style={{ fontSize: 11, color: "#94a3b8" }}>SECCIÓN A-4</div></div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: COLOR_SALDO }}>{formatNum(saldoTotal)} L</div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 16px" }}>
-
-        {/* Notificaciones */}
-        {msg && (
-          <div style={{ background: msg.type === "ok" ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)", borderLeft: `4px solid ${msg.type === "ok" ? "#22c55e" : "#ef4444"}`, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: msg.type === "ok" ? "#86efac" : "#fca5a5" }}>
-            {msg.text}
-          </div>
-        )}
-
-        {/* Setup saldos iniciales */}
-        {(needsSetup || editSaldo) && (
-          <div style={{ background: "#1e293b", border: "1px solid #475569", borderRadius: 6, padding: 20, marginBottom: 24 }}>
-            <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600, letterSpacing: 1, marginBottom: 16, textTransform: "uppercase" }}>Parámetros Iniciales del Mes</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              {["16", "17"].map((cis) => (
-                <div key={cis}>
-                  <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>
-                    Cisterna {cis} — <span style={{ color: CISTERNAS[cis].color }}>{CISTERNAS[cis].proveedor}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="number" value={saldos[cis]} onChange={e => setSaldos({ ...saldos, [cis]: e.target.value })} placeholder="Volumen (L)" style={inputStyle} />
-                    <button onClick={() => handleSaveInicial(cis)} style={btnPrimary}>Guardar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {editSaldo && <button onClick={() => setEditSaldo(null)} style={{ ...btnGhost, marginTop: 16 }}>Cerrar Edición</button>}
-          </div>
-        )}
-
-        {/* Tabs de Navegación */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: "1px solid #334155", paddingBottom: 16 }}>
-          {[
-            ["registro", "Registro Operativo"], 
-            ["historial", "Bitácora"], 
-            ["estadisticas", "Métricas y Estado"], 
-            ["exportar", "Administración"]
-          ].map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={{
-              background: tab === key ? "#2563eb" : "transparent", color: tab === key ? "#fff" : "#94a3b8",
-              border: "none", padding: "8px 16px", borderRadius: 4, cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "background 0.2s"
-            }}>
-              {label}
+      <div style={{ maxWidth: 800, margin: "24px auto", padding: "0 16px" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: "1px solid #334155" }}>
+          {["registro", "historial", "estadisticas", "exportar"].map(key => (
+            <button key={key} onClick={() => setTab(key)} style={{ background: tab === key ? "#2563eb" : "transparent", color: tab === key ? "#fff" : "#94a3b8", border: "none", padding: "10px", cursor: "pointer", fontSize: 13 }}>
+              {key.toUpperCase()}
             </button>
           ))}
         </div>
 
-        {/* TAB: Registro */}
         {tab === "registro" && (
-          <div style={{ background: "#1e293b", borderRadius: 6, padding: 24, border: "1px solid #334155" }}>
-            <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-              {["16", "17"].map(cis => (
-                <button key={cis} onClick={() => setForm({ ...form, cisterna: cis, tipo: "despacho" })} style={{
-                  flex: 1, padding: "12px", borderRadius: 4, border: `1px solid ${form.cisterna === cis ? "#3b82f6" : "#475569"}`,
-                  background: form.cisterna === cis ? "rgba(255,255,255,0.05)" : "transparent",
-                  color: form.cisterna === cis ? "#f8fafc" : "#94a3b8", cursor: "pointer", textAlign: "left"
-                }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>CISTERNA {cis}</div>
-                  <div style={{ fontSize: 11, color: "#60a5fa", marginTop: 4 }}>{CISTERNAS[cis].proveedor}</div>
-                </button>
-              ))}
-            </div>
-
-            {form.cisterna === "17" && (
-              <div style={{ marginBottom: 20, background: "rgba(30, 41, 59, 0.5)", border: "1px solid #475569", borderRadius: 4, padding: "12px 16px" }}>
-                <div style={{ fontSize: 11, color: COLOR_SALDO, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>👤 Dotación de Personal (C-17):</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 8, fontSize: 13 }}>
-                  <div><span style={{ color: "#94a3b8" }}>Conductor:</span> <strong style={{ color: "#f8fafc" }}>{activePersonnel.conductor}</strong></div>
-                  <div><span style={{ color: "#94a3b8" }}>Responsable:</span> <strong style={{ color: "#f8fafc" }}>{activePersonnel.responsable}</strong></div>
-                </div>
+          <div style={{ background: "#1e293b", padding: 20, borderRadius: 6 }}>
+             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                {["16", "17"].map(c => (
+                  <button key={c} onClick={() => setForm({...form, cisterna: c})} style={{ flex: 1, padding: 10, background: form.cisterna === c ? "#3b82f6" : "#0f172a", border: "none", color: "#fff", cursor: "pointer" }}>C-{c}</button>
+                ))}
+             </div>
+             {form.cisterna === "17" && (
+              <div style={{ padding: 10, background: "#0f172a", marginBottom: 15, fontSize: 12 }}>
+                👤 Conductor: {activePersonnel.conductor} | Resp: {activePersonnel.responsable}
               </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-              <div><Label>Fecha</Label><input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} style={inputStyle} /></div>
-              <div>
-                <Label>Tipo de Movimiento</Label>
-                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} style={inputStyle}>
-                  <option value="despacho">Despacho a Aeronave</option>
-                  <option value="recarga">Recarga de Proveedor</option>
-                  <option value="ajuste">Ajuste de Inventario</option>
-                </select>
-              </div>
-              <div><Label>Volumen (Litros)</Label><input type="number" value={form.litros} onChange={e => setForm({ ...form, litros: e.target.value })} placeholder="0.00" style={inputStyle} /></div>
-              
-              {form.tipo === "despacho" && (
-                <>
-                  <div>
-                    <Label>Matrícula de Aeronave</Label>
-                    <input 
-                      type="text" list="aeronaves-list" value={form.matriculaAeronave} 
-                      onChange={e => setForm({ ...form, matriculaAeronave: e.target.value.toUpperCase() })} 
-                      placeholder="Ej. XA-..." style={inputStyle} 
-                    />
-                    <datalist id="aeronaves-list">
-                      {aeronavesUnicas.map(a => <option key={a} value={a} />)}
-                    </datalist>
-                  </div>
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <Label>Clasificación de Operación</Label>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {OP_TYPES.map(t => (
-                        <button key={t} onClick={() => setForm({ ...form, tipoOperacion: t })} style={{
-                          padding: "8px 16px", borderRadius: 4, border: "1px solid #475569",
-                          background: form.tipoOperacion === t ? "#475569" : "transparent", color: form.tipoOperacion === t ? "#fff" : "#cbd5e1",
-                          cursor: "pointer", fontSize: 12
-                        }}>{t}</button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-              <div style={{ gridColumn: "1 / -1" }}><Label>Observaciones Logísticas</Label><input type="text" value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} placeholder="Notas adicionales..." style={inputStyle} /></div>
-            </div>
-
-            <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-              <button onClick={handleSubmit} style={{ ...btnPrimary, padding: "12px 24px" }}>Procesar Movimiento</button>
-              <button onClick={() => setForm(emptyForm(form.cisterna))} style={btnGhost}>Limpiar Formulario</button>
-            </div>
+             )}
+             <input type="date" value={form.fecha} onChange={e => setForm({...form, fecha: e.target.value})} style={inputStyle} />
+             <input type="number" value={form.litros} onChange={e => setForm({...form, litros: e.target.value})} placeholder="Litros" style={{...inputStyle, marginTop: 10}} />
+             <input type="text" list="a-list" value={form.matriculaAeronave} onChange={e => setForm({...form, matriculaAeronave: e.target.value.toUpperCase()})} placeholder="Matrícula" style={{...inputStyle, marginTop: 10}} />
+             <datalist id="a-list">{aeronavesUnicas.map(a => <option key={a} value={a} />)}</datalist>
+             <select value={form.tipoOperacion} onChange={e => setForm({...form, tipoOperacion: e.target.value})} style={{...inputStyle, marginTop: 10}}>
+                {OP_TYPES.map(op => <option key={op} value={op}>{op}</option>)}
+             </select>
+             <button onClick={handleSubmit} style={{...btnPrimary, marginTop: 20, width: "100%"}}>Registrar</button>
           </div>
         )}
 
-        {/* TAB: Estadísticas y Estados */}
         {tab === "estadisticas" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {["16", "17"].map(cis => {
-              const s = saldoCisterna(cis);
-              const stats = getStats(cis);
-              const isLowReserve = s < 5000;
-              const cat = statusCisternas[cis];
-              
-              return (
-                <div key={cis} style={{ background: "#1e293b", borderRadius: 6, padding: 24, border: `1px solid ${cat === "C" ? "#ef4444" : isLowReserve ? "#f59e0b" : "#334155"}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #334155", paddingBottom: 12, marginBottom: 16 }}>
-                    <div>
-                      <span style={{ fontSize: 18, fontWeight: 600, color: "#f8fafc", marginRight: 16 }}>CISTERNA {cis}</span>
-                      <select 
-                        value={cat} onChange={e => saveStatus(cis, e.target.value)}
-                        style={{ ...inputStyle, width: "auto", padding: "6px 12px", fontSize: 12, display: "inline-block", background: cat === "C" ? "#7f1d1d" : cat === "B" ? "#78350f" : "#064e3b", color: "#fff", borderColor: "transparent", fontWeight: 600 }}
-                      >
-                        <option value="A">CAT A - Operativa</option>
-                        <option value="B">CAT B - Condicional</option>
-                        <option value="C">CAT C - Fuera de Servicio</option>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {["16", "17"].map(c => {
+               const s = saldoCisterna(c);
+               const cat = statusCisternas[c];
+               const monthStats = getMonthStats(c);
+               const thisCisNotes = notesCisternas[c] || [];
+               
+               const maxVal = Math.max(monthStats.recargas, monthStats.despachos) || 1;
+               const widthIngreso = (monthStats.recargas / maxVal) * 100;
+               const widthSalida = (monthStats.despachos / maxVal) * 100;
+
+               return (
+                 <div key={c} style={{ background: "#1e293b", padding: 20, borderRadius: 6, border: `1px solid ${cat === "C" ? "#ef4444" : "#334155"}` }}>
+                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>Cisterna {c}</span>
+                      <select value={cat} onChange={e => saveStatus(c, e.target.value)} style={{ background: "#0f172a", color: "#fff", border: "1px solid #334155", padding: "4px" }}>
+                        <option value="A">CAT A</option><option value="B">CAT B</option><option value="C">CAT C</option>
                       </select>
-                    </div>
-                    <button onClick={() => setEditSaldo(cis)} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}>Editar Saldo Inicial</button>
-                  </div>
-                  
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Ingresos (Recargas)</div>
-                      <div style={{ fontSize: 20, fontWeight: 600, color: COLOR_INGRESO }}>+{formatNum(stats.recargas)} <span style={{ fontSize: 12, color: COLOR_INGRESO }}>L</span></div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Consumos (Despachos)</div>
-                      <div style={{ fontSize: 20, fontWeight: 600, color: COLOR_SALIDA }}>-{formatNum(stats.despachos)} <span style={{ fontSize: 12, color: COLOR_SALIDA }}>L</span></div>
-                    </div>
-                    <div style={{ borderLeft: "1px solid #334155", paddingLeft: 16 }}>
-                      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Existencia Actual</div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: isLowReserve ? "#ef4444" : COLOR_SALDO }}>{formatNum(s)} <span style={{ fontSize: 12, color: isLowReserve ? "#ef4444" : COLOR_SALDO }}>L</span></div>
-                      {/* Alerta de Reserva Menor a 5000 */}
-                      {isLowReserve && (
-                         <div style={{ marginTop: 6, fontSize: 10, color: "#ef4444", fontWeight: 700, background: "rgba(239, 68, 68, 0.1)", padding: "4px 8px", borderRadius: 4, display: "inline-block" }}>
-                           ⚠️ RESERVA COMPROMETIDA (&lt; 5,000 L)
-                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
+                   </div>
+                   
+                   <div style={{ marginTop: 10, fontSize: 22, fontWeight: 700, color: s < 5000 ? "#ef4444" : COLOR_SALDO }}>
+                     {formatNum(s)} L
+                   </div>
+                   {s < 5000 && <div style={{ color: "#ef4444", fontSize: 11, fontWeight: 700, marginTop: 2 }}>⚠️ RESERVA BAJA</div>}
+
+                   {/* Rendimiento del Mes */}
+                   <div style={{ marginTop: 15, paddingTop: 12, borderTop: "1px solid #334155" }}>
+                      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 10, fontWeight: 600 }}>Rendimiento del Mes en Curso</div>
+                      
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: "#94a3b8" }}>Entradas (Recargas):</span>
+                          <span style={{ color: COLOR_INGRESO, fontWeight: 700 }}>+{formatNum(monthStats.recargas)} L</span>
+                        </div>
+                        <div style={{ width: "100%", background: "#0f172a", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+                          <div style={{ background: COLOR_INGRESO, height: "100%", width: `${widthIngreso}%` }} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: "#94a3b8" }}>Salidas (Despachos):</span>
+                          <span style={{ color: COLOR_SALIDA, fontWeight: 700 }}>−{formatNum(monthStats.despachos)} L</span>
+                        </div>
+                        <div style={{ width: "100%", background: "#0f172a", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+                          <div style={{ background: COLOR_SALIDA, height: "100%", width: `${widthSalida}%` }} />
+                        </div>
+                      </div>
+                   </div>
+
+                   {/* Lista de Anotaciones */}
+                   <div style={{ marginTop: 20, paddingTop: 15, borderTop: "1px solid #334155" }}>
+                      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", marginBottom: 10, fontWeight: 600 }}>Anotaciones y Novedades de la Unidad</div>
+                      
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        <input 
+                          type="text" 
+                          placeholder="Escribir novedad u observación técnica..." 
+                          value={noteInput[c] || ""} 
+                          onChange={e => setNoteInput({ ...noteInput, [c]: e.target.value })}
+                          style={{ ...inputStyle, padding: "8px 12px", fontSize: 13 }}
+                        />
+                        <button onClick={() => handleAddNote(c)} style={{ ...btnPrimary, padding: "0 16px", fontSize: 12 }}>Añadir</button>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHHeight: "150px", overflowY: "auto" }}>
+                        {thisCisNotes.length === 0 && (
+                          <div style={{ fontSize: 11, color: "#475569", fontStyle: "italic" }}>Sin novedades registradas.</div>
+                        )}
+                        {thisCisNotes.map(n => (
+                          <div key={n.id} style={{ background: "#0f172a", padding: "8px 12px", borderRadius: 4, display: "flex", justifyContent: "space-between", alignItems: "flex-start", fontSize: 12 }}>
+                            <div style={{ flex: 1, paddingRight: 8 }}>
+                              <span style={{ color: COLOR_SALDO, fontWeight: 600, marginRight: 8 }}>{n.fecha}:</span>
+                              <span style={{ color: "#e2e8f0" }}>{n.text}</span>
+                            </div>
+                            <button onClick={() => handleDeleteNote(c, n.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: 0, fontSize: 14 }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                   </div>
+
+                 </div>
+               )
             })}
           </div>
         )}
 
-        {/* TAB: Historial (Bitácora) */}
         {tab === "historial" && (
           <div>
-            {/* Buscador Integrado */}
-            <div style={{ marginBottom: 20 }}>
-              <input 
-                type="text" 
-                placeholder="🔍 Buscar por matrícula (Ej. 2029), operación o nota..." 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)} 
-                style={{ ...inputStyle, padding: "12px 16px" }}
-              />
+            <input placeholder="Buscar matrícula, operación o notas..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{...inputStyle, marginBottom: 14}} />
+            
+            {/* NUEVO PANEL: Consolidación y sumatoria en tiempo real al filtrar */}
+            <div style={{ background: "#1e293b", padding: "12px 16px", borderRadius: 4, marginBottom: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, border: "1px solid #334155" }}>
+              <div>
+                <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Extracciones (Filtrado)</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: COLOR_SALIDA }}>−{formatNum(totalDespachadoFiltrado)} L</div>
+              </div>
+              <div style={{ borderLeft: "1px solid #334155", paddingLeft: 16 }}>
+                <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Recargas (Filtrado)</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: COLOR_INGRESO }}>+{formatNum(totalRecargadoFiltrado)} L</div>
+              </div>
             </div>
 
             {sortedDates.length === 0 && <div style={{ textAlign: "center", color: "#64748b", padding: 40, fontSize: 14 }}>No se encontraron registros.</div>}
             
-            {sortedDates.map(fecha => (
-              <div key={fecha} style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 12, color: "#94a3b8", letterSpacing: 1, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", borderBottom: "1px solid #334155", paddingBottom: 8 }}>
-                  {fecha}
-                </div>
-                <div style={{ background: "#1e293b", borderRadius: 6, overflow: "hidden", border: "1px solid #334155" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: "rgba(0,0,0,0.2)", color: "#cbd5e1", textAlign: "left" }}>
-                        <th style={{ padding: "12px 16px", fontWeight: 500 }}>Unidad</th>
-                        <th style={{ padding: "12px 16px", fontWeight: 500 }}>Operación</th>
-                        <th style={{ padding: "12px 16px", fontWeight: 500 }}>Volumen</th>
-                        <th style={{ padding: "12px 16px", fontWeight: 500 }}>Matrícula</th>
-                        <th style={{ padding: "12px 16px", fontWeight: 500 }}>Notas</th>
-                        <th style={{ padding: "12px 16px" }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {grouped[fecha].map((r) => (
-                        <tr key={r.id} style={{ borderTop: "1px solid #334155" }}>
-                          <td style={{ padding: "12px 16px", color: "#60a5fa", fontWeight: 500 }}>C-{r.cisterna}</td>
-                          <td style={{ padding: "12px 16px", fontWeight: 600, color: r.tipo === "despacho" ? COLOR_SALIDA : r.tipo === "recarga" ? COLOR_INGRESO : COLOR_SALDO }}>
-                            {r.tipo === "despacho" ? "Despacho" : r.tipo === "recarga" ? "Recarga" : "Ajuste"}
-                          </td>
-                          <td style={{ padding: "12px 16px", fontWeight: 600, color: r.tipo === "despacho" ? COLOR_SALIDA : r.tipo === "recarga" ? COLOR_INGRESO : COLOR_SALDO }}>
-                            {r.tipo === "despacho" ? "-" : r.tipo === "recarga" ? "+" : ""}{formatNum(r.litros)}
-                          </td>
-                          <td style={{ padding: "12px 16px", color: "#f8fafc", fontWeight: 600 }}>{r.matriculaAeronave || "—"}</td>
-                          <td style={{ padding: "12px 16px", color: "#64748b", fontSize: 12 }}>{r.notas || "—"}</td>
-                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                            <button onClick={() => handleDelete(r.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 16 }}>×</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {sortedDates.map(date => (
+              <div key={date} style={{ marginBottom: 15 }}>
+                <div style={{ color: "#64748b", fontSize: 12, marginBottom: 5, fontWeight: 600 }}>{date}</div>
+                {grouped[date].map(r => (
+                  <div key={r.id} style={{ background: "#1e293b", padding: 12, marginBottom: 5, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: 4 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 600 }}>{r.matriculaAeronave || "RECARGA PROV."}</span>
+                        <span style={{ fontSize: 11, background: "#0f172a", padding: "2px 6px", borderRadius: 3, color: "#94a3b8" }}>C-{r.cisterna}</span>
+                      </div>
+                      <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>{r.tipoOperacion || "Suministro base"}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <span style={{ color: r.tipo === "despacho" ? COLOR_SALIDA : COLOR_INGRESO, fontWeight: 700 }}>
+                        {r.tipo === "despacho" ? "−" : "+"}{formatNum(r.litros)} L
+                      </span>
+                      <button onClick={() => handleDelete(r.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, padding: 0 }}>✕</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
         )}
 
-        {/* TAB: Exportar / Admin */}
         {tab === "exportar" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            
-            <div style={{ background: "#1e293b", borderRadius: 6, padding: 24, border: "1px solid #334155" }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#f8fafc", marginBottom: 4, textTransform: "uppercase" }}>Asignación Mensual de Personal (Cisterna 17)</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 20 }}>Registre el relevo de la tripulación de la unidad para el control mensual.</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr", gap: 16, alignItems: "end", marginBottom: 20 }}>
-                <div><Label>Periodo</Label><input type="month" value={perForm.periodo} onChange={e => setPerForm({...perForm, periodo: e.target.value})} style={inputStyle} /></div>
-                <div><Label>Nombre del Conductor</Label><input type="text" value={perForm.conductor} onChange={e => setPerForm({...perForm, conductor: e.target.value})} placeholder="Ej. C3. Juan Pérez" style={inputStyle} /></div>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <div style={{ flex: 1 }}><Label>Responsable de Unidad</Label><input type="text" value={perForm.responsable} onChange={e => setPerForm({...perForm, responsable: e.target.value})} placeholder="Ej. Tte. Gómez" style={inputStyle} /></div>
-                  <button onClick={handleSavePersonal} style={{ ...btnPrimary, height: "40px" }}>Fijar</button>
-                </div>
-              </div>
-
-              <div style={{ background: "rgba(0,0,0,0.1)", borderRadius: 4, border: "1px solid #334155", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: "rgba(0,0,0,0.2)", color: "#cbd5e1", textAlign: "left" }}>
-                      <th style={{ padding: "10px 16px", fontWeight: 500 }}>Mes / Año</th>
-                      <th style={{ padding: "10px 16px", fontWeight: 500 }}>Conductor Asignado</th>
-                      <th style={{ padding: "10px 16px", fontWeight: 500 }}>Responsable de Vehículo</th>
-                      <th style={{ padding: "10px 16px" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {personalHistory.length === 0 && (
-                      <tr><td colSpan="4" style={{ padding: "16px", color: "#64748b", textAlign: "center" }}>No hay registros archivados.</td></tr>
-                    )}
-                    {personalHistory.map((p) => (
-                      <tr key={p.id} style={{ borderTop: "1px solid #334155" }}>
-                        <td style={{ padding: "10px 16px", color: COLOR_SALDO, fontWeight: 600 }}>{p.periodo}</td>
-                        <td style={{ padding: "10px 16px", color: "#f8fafc" }}>{p.conductor}</td>
-                        <td style={{ padding: "10px 16px", color: "#cbd5e1" }}>{p.responsable}</td>
-                        <td style={{ padding: "10px 16px", textAlign: "right" }}>
-                          <button onClick={() => handleDeletePersonal(p.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>✕</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <div style={{ background: "#1e293b", padding: 24, borderRadius: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>ADMINISTRACIÓN Y RESPALDOS</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+              <button onClick={exportCSV} style={{ ...btnGhost, flex: 1 }}>Exportar Excel (CSV)</button>
+              <button onClick={exportBackup} style={{ ...btnGhost, flex: 1 }}>Exportar Copia (.json)</button>
             </div>
-
-            <div style={{ background: "#1e293b", borderRadius: 6, padding: 24, border: "1px solid #334155" }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#f8fafc", marginBottom: 20 }}>Administración de Datos y Reportes</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-                <div style={{ padding: 20, border: "1px solid #334155", borderRadius: 4, background: "rgba(0,0,0,0.1)" }}>
-                  <div style={{ fontSize: 13, color: "#f8fafc", fontWeight: 600, marginBottom: 8 }}>Exportar Reporte Mensual (CSV)</div>
-                  <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Genera un archivo compatible con Excel con el detalle de la bitácora.</div>
-                  <button onClick={exportCSV} style={btnGhost}>Descargar Excel (CSV)</button>
-                </div>
-                <div style={{ padding: 20, border: "1px solid #334155", borderRadius: 4, background: "rgba(0,0,0,0.1)" }}>
-                  <div style={{ fontSize: 13, color: "#f8fafc", fontWeight: 600, marginBottom: 8 }}>Copia de Seguridad Estructural</div>
-                  <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>Descarga o restaura los datos completos del sistema incluyendo el personal (Archivo .json).</div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={exportBackup} style={btnGhost}>Exportar Resp.</button>
-                    <label style={{ ...btnPrimary, background: "#334155", display: "inline-block", cursor: "pointer", textAlign: "center", padding: "8px 16px" }}>
-                      Importar Resp.
-                      <input type="file" accept=".json" onChange={importBackup} style={{ display: "none" }} />
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div style={{ borderTop: "1px solid #334155", paddingTop: 16, textAlign: "center" }}>
-                 <button onClick={() => { sessionStorage.removeItem("turbo-auth"); setIsAuthenticated(false); }} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", padding: "8px 16px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
-                   Cerrar Sesión Segura
-                 </button>
-              </div>
-            </div>
-
+            <label style={{ ...btnPrimary, display: "block", textAlign: "center", cursor: "pointer" }}>
+              Importar Copia (.json)
+              <input type="file" accept=".json" onChange={importBackup} style={{ display: "none" }} />
+            </label>
           </div>
         )}
+
       </div>
     </div>
   );
 }
 
-const Label = ({ children }) => (
-  <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 500 }}>{children}</div>
-);
-
-const inputStyle = {
-  width: "100%", background: "#0f172a", border: "1px solid #334155", borderRadius: 4,
-  color: "#f8fafc", padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box"
-};
-
-const btnPrimary = {
-  background: "#2563eb", color: "#fff", border: "none", borderRadius: 4,
-  padding: "10px 16px", cursor: "pointer", fontWeight: 500, fontSize: 13
-};
-
-const btnGhost = {
-  background: "transparent", color: "#f8fafc", border: "1px solid #475569",
-  borderRadius: 4, padding: "10px 16px", cursor: "pointer", fontSize: 13
-};
+const inputStyle = { width: "100%", padding: "10px", background: "#0f172a", border: "1px solid #334155", color: "#fff", boxSizing: "border-box", borderRadius: 4 };
+const btnPrimary = { padding: "10px", background: "#2563eb", border: "none", color: "#fff", cursor: "pointer", borderRadius: 4, fontWeight: 600 };
+const btnGhost = { padding: "10px", background: "transparent", border: "1px solid #475569", color: "#fff", cursor: "pointer", borderRadius: 4 };
