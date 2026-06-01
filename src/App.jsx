@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 // --- CONFIGURACIÓN DE CONTRASEÑA ---
-const PASSWORD_ACCESO = "A4-LOG";
+const PASSWORD_ACCESO = "cyl4";
 // -----------------------------------
 
 const OP_TYPES = ["Adiestramiento", "Ruta Nacional", "Mantenimiento", "Otros"];
