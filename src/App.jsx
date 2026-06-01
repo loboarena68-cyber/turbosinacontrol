@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 // --- CONFIGURACIÓN DE CONTRASEÑA ---
-const PASSWORD_ACCESO = "A4-LOG";
+const PASSWORD_ACCESO = "cyl4";
 // -----------------------------------
 
 const OP_TYPES = ["Adiestramiento", "Ruta Nacional", "Mantenimiento", "Otros"];
@@ -322,4 +322,6 @@ export default function App() {
   );
 }
 
-const Label = ({ children }) => <div style={{ fontSize: 11, color: "#94a3b8", textTransform
+const Label = ({ children }) => <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>{children}</div>;
+const inputStyle = { width: "100%", background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#f8fafc", padding: "10px", outline: "none" };
+const btnPrimary = { background: "#2563eb", color: "#fff", border: "none", padding: "10px", borderRadius: 4, cursor: "pointer" };
