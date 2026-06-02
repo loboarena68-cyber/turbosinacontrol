@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 // --- CONFIGURACIÓN DE CONTRASEÑA ---
-const PASSWORD_ACCESO = "cyl4";
+const PASSWORD_ACCESO = "A4-LOG";
 // -----------------------------------
 
 const OP_TYPES = ["Adiestramiento", "Ruta Nacional", "Mantenimiento", "Otros"];
@@ -51,6 +51,9 @@ export default function App() {
 
   const [personalHistory, setPersonalHistory] = useState([]);
   const [perForm, setPerForm] = useState({ periodo: currentMonthStr(), conductor: "", responsable: "" });
+
+  // NUEVO: Estado para alternar la vista de métricas
+  const [statsView, setStatsView] = useState("historico");
 
   // ESTADOS DEL CHATBOT ASISTENTE LOCAL FLOATING
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -121,7 +124,6 @@ export default function App() {
   const saldo17 = saldoCisterna("17");
   const saldoTotal = saldo16 + saldo17;
 
-  // LÓGICA DE PROCESAMIENTO LOCAL DEL CHATBOT
   const processLocalBotQuery = (queryText) => {
     const q = queryText.toLowerCase().trim();
     if (!q) return "Por favor ingrese un requerimiento o término de búsqueda.";
@@ -270,9 +272,18 @@ export default function App() {
   const needsSetup = saldosSaved["16"] === null || saldosSaved["17"] === null;
   const isAnyCatC = statusCisternas["16"] === "C" || statusCisternas["17"] === "C";
 
+  // ACTUALIZADO: Cálculo de estadísticas según el filtro seleccionado (Histórico vs Mes en curso)
   const getStats = (cis) => {
-    const despachos = records.filter(r => r.cisterna === cis && r.tipo === "despacho").reduce((a, r) => a + r.litros, 0);
-    const recargas = records.filter(r => r.cisterna === cis && r.tipo === "recarga").reduce((a, r) => a + r.litros, 0);
+    let cisRecords = records.filter(r => r.cisterna === cis);
+    
+    if (statsView === "mes") {
+      const actualMonth = currentMonthStr();
+      cisRecords = cisRecords.filter(r => r.fecha.startsWith(actualMonth));
+    }
+
+    const despachos = cisRecords.filter(r => r.tipo === "despacho").reduce((a, r) => a + r.litros, 0);
+    const recargas = cisRecords.filter(r => r.tipo === "recarga").reduce((a, r) => a + r.litros, 0);
+    
     return { despachos, recargas };
   };
 
@@ -472,11 +483,25 @@ export default function App() {
         {/* TAB: Estadísticas */}
         {tab === "estadisticas" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            
+            {/* NUEVO: Control de vista mensual muy discreto */}
+            <div style={{ textAlign: "right" }}>
+              <select 
+                value={statsView} 
+                onChange={e => setStatsView(e.target.value)} 
+                style={{ background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", padding: "6px 12px", borderRadius: 4, fontSize: 12, outline: "none", cursor: "pointer" }}
+              >
+                <option value="historico">Flujos: Histórico Total</option>
+                <option value="mes">Flujos: Mes en Curso</option>
+              </select>
+            </div>
+
             {["16", "17"].map(cis => {
-              const s = saldoCisterna(cis);
-              const stats = getStats(cis);
+              const s = saldoCisterna(cis); // La existencia siempre es la real
+              const stats = getStats(cis); // Los consumos respetan el filtro
               const isLowReserve = s < 5000;
               const cat = statusCisternas[cis];
+              
               return (
                 <div key={cis} style={{ background: "#1e293b", borderRadius: 6, padding: 24, border: `1px solid ${cat === "C" ? "#ef4444" : isLowReserve ? "#f59e0b" : "#334155"}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #334155", paddingBottom: 12, marginBottom: 16 }}>
